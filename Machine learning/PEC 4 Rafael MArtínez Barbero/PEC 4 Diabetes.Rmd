@@ -1,0 +1,348 @@
+---
+title: "Diagnosis de diabetes en pacientes. Rafael Martínez Barbero."
+output:
+  word_document: default
+  html_document: default
+date: "2026-01-12"
+---
+## ÍNDICE
+### - 1. Análsis exploratorio de los datos y separación del dataset en train y test.
+### - 2. Aplicación de los distintos algoritmos
+### - 3. Conclusión y discusión.
+
+### 1. Análsis exploratorio de los datos y separación del dataset en train y test.
+Lo primero que hacemos es cargar los datos.
+
+```{r}
+diab_data <- read.delim("D:/Descargas/PEC4_2526_1_cas/patients_diabetis.txt")
+str(diab_data)
+diab_data$age
+```
+
+Separamos los datos en train (67%) y test (33%), como observando los datos se ve que las variables están ordenadas al azar, podemos partir el dataset en un set de train con 515 observaciones para las 9 variables y en un set de test con 263 observaciones para las 9 variables.
+
+```{r}
+set.seed(12345)
+# 1. Crear los sets de datos (predictores) sin la columna 'class'
+diab_train <- diab_data[1:515, names(diab_data) != "class"]
+diab_test  <- diab_data[516:768, names(diab_data) != "class"]
+# 2. Crear los vectores de etiquetas (la respuesta que queremos predecir)
+diab_train_labels <- diab_data[1:515, "class"]
+diab_test_labels  <- diab_data[516:768, "class"]
+```
+
+A continuación, realizamos el análsis exploratorio de los datos
+
+```{r}
+summary(diab_data)
+```
+
+```{r}
+boxplot(scale(diab_data)[,-9],las=2, cex.axis=0.7, cex.main=0.7)
+```
+
+Las medianas en algunos casos no estan centradas, habiendo un poco de asimetría positiva como pasa en las variables pregnant, glucose o insulin, de igual forma, hay una pequeña asimetría negativa en las variables triceps y pressure. El mayor nº de outliers se ubica en insulin, entendible debido a que en el datasdet hay pacientes con diabetes.
+
+```{r}
+resultados_norm <- lapply((diab_data)[,-9], shapiro.test)
+print(resultados_norm)
+```
+
+```{r}
+# 2. Creamos un bucle que recorra las 9 columnas
+for (i in 1:ncol(diab_data)) {
+  # Dibujar el gráfico QQ
+  qqnorm(diab_data[[i]], main = paste("Q-Q Plot:", colnames(diab_data)[i]))
+  
+  # Añadir la línea de referencia
+  qqline(diab_data[[i]], col = "red", lwd = 2)
+}
+```
+
+Se observa que las variables siguen cierta normalidad unas más (glucose) que otras (insulin).
+
+```{r warning=FALSE}
+# install.packages("pheatmap")
+library(pheatmap)
+pheatmap(cor(diab_data), 
+         display_numbers = TRUE,    # Pone los números dentro de los cuadros
+         color = colorRampPalette(c("lightblue", "white", "purple"))(100), # Escala azul-blanco-rojo
+         main = "Matriz de Correlación Diabetes",
+         fontsize_number = 10)
+```
+
+Se observa como la variable glucose es la que mejor predice la class ($r = 0.47$), seguida de mass (IMC) y age. Así mismo, también se observa relación entra las variables pregnant y age ($r = 0.54$) y entre las variables triceps e insulin ($r = 0.44$)
+
+```{r}
+table(diab_data$class)
+```
+
+Tenemos un total de 500 personas sin diabetes y 268 con diabetes.
+
+## 2. Aplicación de los distintos algoritmos
+
+Comenzamos con el algoritmo K-vecinos más cercanos (kNN)
+```{r}
+library(class)
+library(caret)
+# 2. Asegurar que las etiquetas sean factores 
+diab_train_labels <- as.factor(diab_train_labels)
+diab_test_labels <- as.factor(diab_test_labels)
+# Ejecutamos los modelos KNN 
+diab_pred_1 <- knn(train = diab_train, test = diab_test, cl = diab_train_labels, k = 1)
+diab_pred_3 <- knn(train = diab_train, test = diab_test, cl = diab_train_labels, k = 3)
+diab_pred_5 <- knn(train = diab_train, test = diab_test, cl = diab_train_labels, k = 5)
+diab_pred_7 <- knn(train = diab_train, test = diab_test, cl = diab_train_labels, k = 7)
+diab_pred_11 <- knn(train = diab_train, test = diab_test, cl = diab_train_labels, k = 11)
+# Creamos las matrices de confusión mediante confussionMatrix()
+cm1 <- confusionMatrix(diab_pred_1, diab_test_labels)
+cm3 <- confusionMatrix(diab_pred_3, diab_test_labels)
+cm5 <- confusionMatrix(diab_pred_5, diab_test_labels)
+cm7 <- confusionMatrix(diab_pred_7, diab_test_labels)
+cm11 <- confusionMatrix(diab_pred_11, diab_test_labels)
+# Extraemos los estadísitcos de la matriz de confusioón creada por  confusionMatrix()
+# Para K=1
+met_k1 <- c(cm1$overall["Accuracy"], cm1$overall["Kappa"], cm1$byClass["Sensitivity"], cm1$byClass["Specificity"])
+# Para K=3
+met_k3 <- c(cm3$overall["Accuracy"], cm3$overall["Kappa"], cm3$byClass["Sensitivity"], cm3$byClass["Specificity"])
+# Para K=5
+met_k5 <- c(cm5$overall["Accuracy"], cm5$overall["Kappa"], cm5$byClass["Sensitivity"], cm5$byClass["Specificity"])
+# Para K=7
+met_k7 <- c(cm7$overall["Accuracy"], cm7$overall["Kappa"], cm7$byClass["Sensitivity"], cm7$byClass["Specificity"])
+# Para K=11
+met_k11 <- c(cm11$overall["Accuracy"], cm11$overall["Kappa"], cm11$byClass["Sensitivity"], cm11$byClass["Specificity"])
+# Creamos una tabla comparativa
+comparativa_stats <- data.frame(
+  K = c(1, 3, 5, 7, 11),
+  rbind(met_k1, met_k3, met_k5, met_k7, met_k11))
+# Limpiamos los nombres de columnas para el informe
+colnames(comparativa_stats) <- c("K", "Accuracy", "Kappa", "Sensitivity", "Specificity")
+rownames(comparativa_stats) <- NULL
+print(comparativa_stats)
+
+```
+
+Vemos que el mejor modelo para KNN es el modelo $K = 11$.
+
+Ahora realizaremos el algoritmo Naive-Bayes
+
+```{r}
+# 1. Cargar librerías
+library(e1071)
+library(caret)
+# 2. Asegurar que las etiquetas sean factores 
+diab_train_labels <- as.factor(diab_train_labels)
+diab_test_labels <- as.factor(diab_test_labels)
+# Modelo 1: Laplace = 0
+nb_model_0 <- naiveBayes(diab_train, diab_train_labels, laplace = 0)
+nb_pred_0 <- predict(nb_model_0, diab_test)
+# Modelo 2: Laplace = 1
+nb_model_1 <- naiveBayes(diab_train, diab_train_labels, laplace = 1)
+nb_pred_1 <- predict(nb_model_1, diab_test)
+# Matrices de confusión
+cm_nb0 <- confusionMatrix(nb_pred_0, diab_test_labels)
+cm_nb1 <- confusionMatrix(nb_pred_1, diab_test_labels)
+# Extracción estadísticos matrices
+met_nb0 <- c(cm_nb0$overall["Accuracy"], cm_nb0$overall["Kappa"], 
+             cm_nb0$byClass["Sensitivity"], cm_nb0$byClass["Specificity"])
+
+met_nb1 <- c(cm_nb1$overall["Accuracy"], cm_nb1$overall["Kappa"], 
+             cm_nb1$byClass["Sensitivity"], cm_nb1$byClass["Specificity"])
+
+# Tabla comparativa.
+
+comparativa_nb <- data.frame(
+  Laplace = c(0, 1),
+  rbind(met_nb0, met_nb1))
+# Asignar nombres a las columnas
+colnames(comparativa_nb) <- c("Laplace", "Accuracy", "Kappa", "Sensitivity", "Specificity")
+rownames(comparativa_nb) <- NULL
+print(comparativa_nb)
+```
+
+Vemos que no hay diferencia en utilizar la corrección de Laplace ya que para los valores de laplace 0 y 1 obtenemos los mismo resultados. También vemos que este algoritmo es mejor que KNN.
+
+Ahora continuamos con el algoritmo Support Vector Machine (SVM).
+
+```{r}
+# 1. Cargar librería
+library(kernlab)
+
+# 2. Asegurar que las etiquetas sean factores
+diab_train_labels <- as.factor(diab_train_labels)
+diab_test_labels  <- as.factor(diab_test_labels)
+# Modelo 1: SVM lineal 
+set.seed(3376)
+modelo_svm_lineal <- ksvm(
+  x = as.matrix(diab_train),    
+  y = as.factor(diab_train_labels), 
+  kernel = kernlab::vanilladot(), 
+  C = 1
+)
+# Modelo 2: SVM RBF
+set.seed(3376)
+modelo_svm_rbf <- ksvm(
+  x = as.matrix(diab_train), 
+  y = as.factor(diab_train_labels), 
+  kernel = kernlab::rbfdot(),    
+  C = 1
+)
+# Predicciones 
+pred_lineal <- predict(modelo_svm_lineal, newdata = diab_test)
+pred_rbf <- predict(modelo_svm_rbf, newdata = diab_test)
+# 2. Generar las Matrices de confusión
+# Asegúrate de usar las etiquetas reales 'diab_test_labels'
+cm_svm_lineal <- confusionMatrix(pred_lineal, diab_test_labels)
+cm_svm_rbf    <- confusionMatrix(pred_rbf, diab_test_labels)
+
+# 3. Extracción de estadísticos
+met_svm_lineal <- c(cm_svm_lineal$overall["Accuracy"], 
+                    cm_svm_lineal$overall["Kappa"], 
+                    cm_svm_lineal$byClass["Sensitivity"], 
+                    cm_svm_lineal$byClass["Specificity"])
+
+met_svm_rbf    <- c(cm_svm_rbf$overall["Accuracy"], 
+                    cm_svm_rbf$overall["Kappa"], 
+                    cm_svm_rbf$byClass["Sensitivity"], 
+                    cm_svm_rbf$byClass["Specificity"])
+
+# 4. Crear la Tabla comparativa
+comparativa_svm <- data.frame(
+  Kernel = c("Lineal", "RBF"),
+  rbind(met_svm_lineal, met_svm_rbf)
+)
+
+# 5. Asignar nombres a las columnas y limpiar filas
+colnames(comparativa_svm) <- c("Kernel", "Accuracy", "Kappa", "Sensitivity", "Specificity")
+rownames(comparativa_svm) <- NULL
+
+# 6. Mostrar resultado
+print(comparativa_svm)
+
+```
+
+Vamos ahora con los arboles de decisión
+
+```{r}
+# 1. Cargar librerías necesarias
+library(C50)
+library(caret)
+
+# 2. Asegurar que las etiquetas son factores
+diab_train_labels <- as.factor(diab_train_labels)
+diab_test_labels  <- as.factor(diab_test_labels)
+
+#Modelo de Árbol de Clasificación Simple (Sin Boosting) 
+set.seed(3376)
+modelo_tree <- C5.0(x = diab_train, y = diab_train_labels, trials = 1)
+pred_tree   <- predict(modelo_tree, newdata = diab_test)
+
+# Modelo de Árbol con Boosting (10 iteraciones) 
+# El parámetro 'trials' activa el boosting
+set.seed(3376)
+modelo_boost <- C5.0(x = diab_train, y = diab_train_labels, trials = 10)
+pred_boost   <- predict(modelo_boost, newdata = diab_test)
+
+# 3. Generar Matrices de Confusión
+cm_tree  <- confusionMatrix(pred_tree, diab_test_labels)
+cm_boost <- confusionMatrix(pred_boost, diab_test_labels)
+
+# 4. Extracción de métricas
+met_tree <- c(cm_tree$overall["Accuracy"], cm_tree$overall["Kappa"], 
+              cm_tree$byClass["Sensitivity"], cm_tree$byClass["Specificity"])
+
+met_boost <- c(cm_boost$overall["Accuracy"], cm_boost$overall["Kappa"], 
+               cm_boost$byClass["Sensitivity"], cm_boost$byClass["Specificity"])
+
+# 5. Tabla comparativa
+comparativa_tree <- data.frame(
+  Metodo = c("Arbol Simple", "Boosting (10 trials)"),
+  rbind(met_tree, met_boost)
+)
+
+colnames(comparativa_tree) <- c("Metodo", "Accuracy", "Kappa", "Sensitivity", "Specificity")
+rownames(comparativa_tree) <- NULL
+print(comparativa_tree)
+```
+
+Por último, aplicaremos el algoritmo random forest.
+
+```{r}
+# 1. Cargar librerías
+library(randomForest)
+library(caret)
+
+# 2. Asegurar que las etiquetas sean factores
+diab_train_labels <- as.factor(diab_train_labels)
+diab_test_labels  <- as.factor(diab_test_labels)
+
+# Modelo de Random Forest con n = 100 árboles 
+set.seed(3376)
+modelo_rf_100 <- randomForest(
+  x = diab_train, 
+  y = diab_train_labels, 
+  ntree = 100
+)
+pred_rf_100 <- predict(modelo_rf_100, newdata = diab_test)
+
+#  Modelo de Random Forest con n = 200 árboles 
+set.seed(3376)
+modelo_rf_200 <- randomForest(
+  x = diab_train, 
+  y = diab_train_labels, 
+  ntree = 200
+)
+pred_rf_200 <- predict(modelo_rf_200, newdata = diab_test)
+
+# 3. Generar Matrices de Confusión
+cm_rf_100 <- confusionMatrix(pred_rf_100, diab_test_labels)
+cm_rf_200 <- confusionMatrix(pred_rf_200, diab_test_labels)
+
+# 4. Extracción de métricas
+met_rf_100 <- c(cm_rf_100$overall["Accuracy"], cm_rf_100$overall["Kappa"], 
+                cm_rf_100$byClass["Sensitivity"], cm_rf_100$byClass["Specificity"])
+
+met_rf_200 <- c(cm_rf_200$overall["Accuracy"], cm_rf_200$overall["Kappa"], 
+                cm_rf_200$byClass["Sensitivity"], cm_rf_200$byClass["Specificity"])
+
+# 5. Tabla comparativa
+comparativa_rf <- data.frame(
+  Num_Arboles = c(100, 200),
+  rbind(met_rf_100, met_rf_200)
+)
+
+colnames(comparativa_rf) <- c("N_Trees", "Accuracy", "Kappa", "Sensitivity", "Specificity")
+rownames(comparativa_rf) <- NULL
+print(comparativa_rf)
+```
+
+### - 3. Conclusión y discusión.
+Ahora realizaremos una tabla comparativa con las 4 métricas (Accuracy, Kappa, Sensitivity y Specificity) para ver cual de los modelos ha obtenido mejores resultados:
+
+
+Tras analizar los resultados, se observa que el modelo de Random Forest con 200 es el que mejor resultados arroja en lo referente a precisión global y robustez, alcanzando un Accuracy = 0.8142 y un índice Kappa = 0.5610, lo que lo sitúa como el algoritmo más fiable de la comparativa. No obstante, si el objetivo clínico prioritario es la detección precoz para no dejar casos de diabetes sin tratar, el SVM Lineal lidera en Sensibilidad = 0.9176, siendo el más eficaz para identificar correctamente a los pacientes enfermos. Por el contrario, las Redes Neuronales con una arquitectura de 2 capas ocultas con 12 y 6 nodos destacan por su capacidad para descartar sujetos sanos, ya que cuantan con la mayor Especificidad = (0.8512), aunque presentan la desventaja de una baja sensibilidad, lo que hace que se pierdan muchos casos de personas que son de verdad diabéticas. Por lo tanto, la elección del modelo definitivo depende del equilibrio que se desee alcanzar entre los dos tipos de error: si se busca un sistema que minimice tanto los falsos negativos (enfermos no detectados) como los falsos positivos (sanos diagnosticados erróneamente), el Random Forest con 200 árboles es el modelo más equilibrado. Sin embargo, si la prioridad absoluta es la seguridad del paciente y se prefiere aceptar un mayor número de falsos positivos a cambio de reducir al mínimo los falsos negativos, el SVM Lineal es la opción superior. Por el contrario, las Redes Neuronales se sitúan en el extremo opuesto, siendo modelos muy seguros para evitar falsos positivos, pero con un riesgo inasumible de generar falsos negativos en un entorno clínico de detección de diabetes.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, comment = NULL, cache = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

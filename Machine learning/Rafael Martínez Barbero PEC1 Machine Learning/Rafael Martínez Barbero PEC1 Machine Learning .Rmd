@@ -1,0 +1,401 @@
+---
+title: "PEC 1 Machine Learning"
+output: html_document
+date: "2025-10-16"
+---
+
+# PEC 1 Machine Learning: Algoritmos K-Vecinos más cercanos
+
+### Ejercicio 1
+
+#### *Escribir en el informe una sección con el título "Algoritmo k-NN" en el que se haga una breve explicación de su funcionamiento y sus características. Además, se presente una tabla de sus fortalezas y debilidades.*
+
+##### El algoritmo K vecinos más cercanos ( K-NN) es un algoritmo que clasidfica a los datos en función de su cercanía a un grupo en concreto, es decir, en base a su cercanía al vecino más cercano. Este utiliza utiliza distancia euclideas para medir la distancia entre los grupos y los dstos a categorizar en cada grupo. Etse algortimo trata a los datos como coordenadas en un espacio de características multidimensional. En el caso de que el conjunto de datos incluyese solo dos características, el espacio de características sería bidimensional.
+
+```{r}
+library(knitr)
+fortalezas_debilidades <- data.frame(
+  Características = c("FORTALEZAS:", 
+                      "• Simple y efectivo", 
+                      "• No hace suposiciones sobre la distribución subyacente de los datos", 
+                      "• Fase de entrenamiento rápida",
+                      "DEBILIDADES:", 
+                      "• No produce un modelo, limitando la capacidad de entender cómo las características se relacionan con la clase",
+                      "• Requiere la selección de una k apropiada",
+                      "• Fase de clasificación lenta", 
+                      "• Las características nominales y los datos faltantes requieren procesamiento adicional")
+)
+
+print(fortalezas_debilidades)
+kable(fortalezas_debilidades)
+```
+
+### Ejercicio 2
+
+#### *Desarrollar una función en R (o Python) que implemente una codificación "one-hot" (one-hot encoding) de las secuencias.*
+
+```{r}
+onehot_encoding <- function(data) {
+  
+  # Orden alfabético de aminoácidos según código de 3 letras
+  # Ala, Arg, Asn, Asp, Cys, Gln, Glu, Gly, His, Ile, Leu, Lys, Met, 
+  # Phe, Pro, Ser, Thr, Trp, Tyr, Val
+  aa_orden <- c('A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I',
+                'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V')
+  
+  # Crear mapeo de aminoácido a índice (1-20)
+  aa_to_index <- setNames(1:20, aa_orden)
+  
+  # Parámetros
+  n_aminoacidos <- 20  # Número de aminoácidos posibles
+  longitud_secuencia <- 17  # Longitud de cada secuencia
+  n_secuencias <- nrow(data)  # Número de secuencias en el dataset
+  
+  # Columnas que contienen los aminoácidos
+  columnas_secuencia <- paste0("V", 1:17)
+  
+  # Verificar que las columnas existen
+  if (!all(columnas_secuencia %in% names(data))) {
+    stop("El dataset no contiene las columnas V1-V17 esperadas")
+  }
+  
+  # Inicializar matriz de salida
+  # Dimensión: n_secuencias x 340 (17 posiciones × 20 aminoácidos)
+  matriz_onehot <- matrix(0, 
+                          nrow = n_secuencias, 
+                          ncol = longitud_secuencia * n_aminoacidos)
+  # Procesar cada secuencia
+  for (i in 1:n_secuencias) {
+    # Extraer la secuencia (17 aminoácidos)
+    secuencia <- as.character(data[i, columnas_secuencia])
+    
+    # Codificar cada posición de la secuencia
+    for (pos in 1:longitud_secuencia) {
+      aa <- secuencia[pos]
+      
+      # Verificar que el aminoácido es válido
+      if (aa %in% names(aa_to_index)) {
+        # Calcular la posición en el vector one-hot
+        # Fórmula: (posición_en_secuencia - 1) × 20 + índice_aminoácido
+        indice_vector <- (pos - 1) * n_aminoacidos + aa_to_index[aa]
+        matriz_onehot[i, indice_vector] <- 1
+      } else {
+        warning(paste("Aminoácido desconocido '", aa, "' en fila", i, 
+                      "posición", pos))
+      }
+    }
+  }
+  return(matriz_onehot)
+}
+```
+
+### Ejercicio 3
+
+#### a) *Leer el fichero data4.csv. Cada registro contiene una secuencia de 17 aminoácidos y la clase de estructura secundaria correspondiente al aminoácido central (posición 9), donde los caracteres ‘h‘, ‘e‘ y ‘\_‘ representan α-helix, β-sheet y coil, respectivamente. Después de cargar los datos, crear una tabla donde se muestre el número de secuencias de cada clase*
+
+```{r}
+# Cargar los datos
+data <- read.csv("D:/Descargas/PEC1/data4.csv", sep = ";", header = TRUE)
+
+# Verificar la estructura
+print(paste("Número de columnas:", ncol(data)))
+print("Nombres de columnas:")
+print(colnames(data))
+
+# Crear tabla con el número de secuencias de cada clase
+# La clase está en la columna V18 (posición 9 en el contexto del problema)
+tabla_clases <- table(data$V18)
+
+# Mostrar la tabla
+print("Número de secuencias por clase:")
+print(tabla_clases)
+
+```
+
+#### b) *Utilizar la función de codificación "one-hot" para representar las secuencias.*
+
+```{r}
+data_onehot <- onehot_encoding(data)
+data_oh <- data.frame(data_onehot)
+```
+
+#### c) *Utilizando la semilla aleatoria 4671, separar los datos en dos partes, una parte para training (67%) y una parte para test (33%)*
+
+```{r}
+set.seed(4671)
+# Al tener que dividirlos en el 67% y 33%, y al sder el set total de datosd 10000 observaciones, al set de entenamiento le damos desde la observacion 1 a la 6700 y al set de test le damos desde el 6701 al 10000.
+oh_enc <- read.csv("D:/Descargas/PEC1/oh_enc.csv")
+train_data_aa <- oh_enc[1:6700,]
+test_data_aa <- oh_enc[6701:10000,]
+```
+
+#### d) *Utilizar un knn (k = 1, 3, 5, 7, 11) basado en el training para predecir la estructura secundaria de las secuencias del test.*
+
+```{r}
+#Lo primero que hacemos es cargar la librería class y hacer los vectores con las clases para el set de entrenamiento y el set de test.
+library(class)
+data_labels <- data[,18]
+train_data_labels <- data_labels[1:6700]
+test_data_labels <- data_labels[6701:10000]
+```
+
+##### A continuación, realizamos el algoritmo como tal,
+
+##### Para k = 1:
+
+```{r}
+prot_pred_1 <- knn(train = train_data_aa, test = test_data_aa, cl = train_data_labels, k = 1)
+```
+
+##### Ahora para k=3
+
+```{r}
+prot_pred_3 <- knn(train = train_data_aa, test = test_data_aa, cl = train_data_labels, k = 3)
+```
+
+##### Ahora para k=5
+
+```{r}
+prot_pred_5 <- knn(train = train_data_aa, test = test_data_aa, cl = train_data_labels, k = 5)
+```
+
+##### Ahora para k=7
+
+```{r}
+prot_pred_7 <- knn(train = train_data_aa, test = test_data_aa, cl = train_data_labels, k = 7)
+```
+
+##### Ahora para k=11
+
+```{r}
+prot_pred_11 <- knn(train = train_data_aa, test = test_data_aa, cl = train_data_labels, k=11)
+```
+
+##### Ya tenemos nuestros algoritmos k vecinos más cercanois para los valores K=1,3,5,7,11.
+
+#### e) *Por otra parte, sabemos que las clases α-helix y β-sheet son del tipo non-coil. Realizar otro knn (k = 1, 3, 5, 7, 11) para esta nueva clasificación, coil y non-coil. Además, realizar una curva ROC para cada k y calcular su área bajo la curva (AUC).*
+
+##### Para este apartado utilizaremos el mismo código para la parte correspondiente al algortimo, pero primero debemos obtener la separación de las clases en coli y non coil:
+
+```{r}
+data2 <- read.csv("D:/Descargas/PEC1/data4.csv", sep =";", header = TRUE)
+# Crear variable binaria: coil vs non-coil, representados como el nº 2 y 3 respectivamente
+data2$V18 <-  ifelse(data$V18 == "_", "coil", "non_coil")
+
+# Verificar la distribución
+table(data2$V18)
+```
+
+```{r}
+library(class)
+data_labels2 <- data2[,18]
+train_data_labels2 <- data_labels2[1:6700]
+test_data_labels2 <- data_labels2[6701:10000]
+```
+
+##### A continuación, realizamos el algoritmo como tal, estos le ponemos prob = TRUE para sacar las probabilidades que luego nos permitiran utilzar la función performance del paquete ROCR para el cálculo del AUC y la curva ROC.
+
+##### Para k = 1:
+
+```{r}
+prot_pred_1_coil <- knn(train = train_data_aa, test = test_data_aa, cl = train_data_labels2, k = 1, prob = TRUE)
+```
+
+##### Ahora para k=3
+
+```{r}
+prot_pred_3_coil <- knn(train = train_data_aa, test = test_data_aa, cl = train_data_labels2, k = 3, prob = TRUE)
+```
+
+##### Ahora para k=5
+
+```{r}
+prot_pred_5_coil <- knn(train = train_data_aa, test = test_data_aa, cl = train_data_labels2, k = 5, prob = TRUE)
+```
+
+##### Ahora para k=7
+
+```{r}
+prot_pred_7_coil <- knn(train = train_data_aa, test = test_data_aa, cl = train_data_labels2, k = 7, prob = TRUE)
+```
+
+##### Ahora para k=11
+
+```{r}
+prot_pred_11_coil <- knn(train = train_data_aa, test = test_data_aa, cl = train_data_labels2, k = 11, prob = TRUE)
+```
+
+##### Para realizar la curva ROC, utilizaremos la función performance del paquete ROCR.Pero antes hay que crear los objetos de tipo predict utilizando para ello la función de R predict.
+
+```{r}
+library(ROCR)
+# Primero, extraemos las probabilidades del algoritmo KNN 
+
+prob_1 <- attr(prot_pred_1_coil, "prob")
+prob_3 <- attr(prot_pred_3_coil, "prob")
+prob_5 <- attr(prot_pred_5_coil, "prob")
+prob_7 <- attr(prot_pred_7_coil, "prob")
+prob_11 <- attr(prot_pred_11_coil, "prob")
+
+# Ahora, utilizamos el mismo cóidigo para convertir las clases coil/non_coil en formato numérico
+# 1 = non_coil, 0 = coil
+real_numeric <- ifelse(test_data_labels2 == "non_coil", 1, 0)
+
+# Ajustamos probabilidades: si predice "coil", usar 1-prob
+prob_1_adj <- ifelse(prot_pred_1_coil == "non_coil", prob_1, 1 - prob_1)
+prob_3_adj <- ifelse(prot_pred_3_coil == "non_coil", prob_3, 1 - prob_3)
+prob_5_adj <- ifelse(prot_pred_5_coil == "non_coil", prob_5, 1 - prob_5)
+prob_7_adj <- ifelse(prot_pred_7_coil == "non_coil", prob_7, 1 - prob_7)
+prob_11_adj <- ifelse(prot_pred_11_coil == "non_coil", prob_11, 1 - prob_11)
+
+# 5. Crear curvas ROC directamente
+roc_1 <- prediction(prob_1_adj, real_numeric)
+roc_3 <- prediction(prob_3_adj, real_numeric)
+roc_5 <- prediction(prob_5_adj, real_numeric)
+roc_7 <- prediction(prob_7_adj, real_numeric)
+roc_11 <- prediction(prob_11_adj, real_numeric)
+
+# 6. Graficamos las curvas ROC juntas para poder comparar por algortimos
+plot(performance(roc_1, "tpr", "fpr"), col = "red", lwd = 2, main = "Curvas ROC")
+plot(performance(roc_3, "tpr", "fpr"), col = "blue", lwd = 2, add = TRUE)
+plot(performance(roc_5, "tpr", "fpr"), col = "green", lwd = 2, add = TRUE)
+plot(performance(roc_7, "tpr", "fpr"), col = "orange", lwd = 2, add = TRUE)
+plot(performance(roc_11, "tpr", "fpr"), col = "purple", lwd = 2, add = TRUE)
+
+abline(0, 1, lty = 2, col = "gray")
+legend("bottomright", legend = paste("k =", c(1,3,5,7,11)), 
+       col = c("red","blue","green","orange","purple"), lwd = 2)
+
+# 7. Calcular AUCs
+auc_1 <- performance(roc_1, "auc")@y.values[[1]]
+auc_3 <- performance(roc_3, "auc")@y.values[[1]]
+auc_5 <- performance(roc_5, "auc")@y.values[[1]]
+auc_7 <- performance(roc_7, "auc")@y.values[[1]]
+auc_11 <- performance(roc_11, "auc")@y.values[[1]]
+
+cat("AUC para k=1:", round(auc_1, 4), "\n")
+cat("AUC para k=3:", round(auc_3, 4), "\n")
+cat("AUC para k=5:", round(auc_5, 4), "\n")
+cat("AUC para k=7:", round(auc_7, 4), "\n")
+cat("AUC para k=11:", round(auc_11, 4), "\n")
+```
+
+#### f) Comentar los resultados de la clasificación para las tres clases de estructuras secundarias basado, como mínimo, en el error de clasificación y el valor de kappa. Además, comentar los resultados para las clases coil y non-coil en función del AUC, número de falsos positivos, falsos negativos y error de clasificación. En ambos casos tener en cuenta los resultados obtenidos para los diferentes valores de k. La clase que será asignada como positiva en la clasificación binaria es la non-coil. Finalmente, comentar globalmente los resultados de ambas clasificaciones.
+
+##### Para este apartado utilizaré la función CrossTable del paquete gmodels, ya que con este obtenemos una matriz de confusión necesaria para el cálculo de los estadísticos requeridos. En el caso de las matriuces de confusión de 3 clases he supuesto que la clase positiva es la clase coil("_"). Para el cálculo de los estadísticos se ha hecho hecho una función que calcula el error negativo y kappa para ambos casos y para los datos binarios también nos devuleve el FP y FN, dejo un ejemplo de como funionan ambos para ambos K-NN k =1.
+```{r}
+library(gmodels)
+# Para los modelos de 3 clases 
+cm_1 <- CrossTable(x = test_data_labels, y = prot_pred_1, prop.chisq = FALSE)
+TP1 <- 1514
+TN1 <- 417+61+59+587
+FP1 <- 148+172
+FN1<- 152+190
+# Para automatizar el proceso, hacemos una función
+calcular_metricas <- function(TP, TN, FP, FN, total = 3300) {
+  # Calcular accuracy y error
+  accuracy <- (TP + TN) / (TP + TN + FP + FN)
+  error <- 1 - accuracy
+  
+  # Calcular Kappa
+  Po <- (TP + TN) / total
+  marginal_fila1 <- TP + FP
+  marginal_fila2 <- FN + TN
+  marginal_col1 <- TP + FN
+  marginal_col2 <- FP + TN
+  
+  Pe <- (marginal_fila1 * marginal_col1 + marginal_fila2 * marginal_col2) / (total^2)
+  kappa <- (Po - Pe) / (1 - Pe)
+  
+  # Devolver resultados
+  return(list(
+    Error_1 = error,
+    Kappa_1 = kappa
+  ))
+}
+calcular_metricas(TP1, TN1, FP1, FN1)
+```
+
+
+
+##### Ahora lo hacemos para los datos binarios:
+```{r}
+cm_1_coil<-  CrossTable(x = test_data_labels2, y = prot_pred_11_coil, prop.chisq = FALSE)
+TP11 <- 1383
+TN11 <- 802
+FP11 <- 664
+FN11 <- 451
+calcular_metricas <- function(TP, TN, FP, FN, total = 3300) {
+  # Calcular accuracy y error
+  accuracy <- (TP + TN) / (TP + TN + FP + FN)
+  error <- 1 - accuracy
+  
+  # Calcular Kappa
+  Po <- (TP + TN) / total
+  marginal_fila1 <- TP + FP
+  marginal_fila2 <- FN + TN
+  marginal_col1 <- TP + FN
+  marginal_col2 <- FP + TN
+  
+  Pe <- (marginal_fila1 * marginal_col1 + marginal_fila2 * marginal_col2) / (total^2)
+  kappa <- (Po - Pe) / (1 - Pe)
+  
+  # Devolver resultados
+  return(list(
+    FP11 = FP11,
+    FN11 = FN11, 
+    Error_1 = error,
+    Kappa_1 = kappa
+  ))
+}
+calcular_metricas(TP1, TN1, FP1, FN1)
+```
+##### Para faciliatr la comprensiuón y evitar el volcado innecesario de código y resultados, se han englobado todos en dos tablas, cada una correspondiente a si hay 3 clases o 2.
+
+```{r}
+library(knitr)
+# Crear data frame con los resultados
+
+resultados <- data.frame(
+  Algoritmo = c("k=1", "k=3", "k=5", "k=7", "k=11"),
+  Error = c(0.2006061, 0.219496, 0.3178788, 0.3345455, 0.36),
+  Kappa = c(0.5931231, 0.4935847, 0.3386301, 0.2968848, 0.2329269)
+)
+# Crear data frame con los nuevos valores
+resultados_coil <- data.frame(
+  Algoritmo = c("k=1", "k=3", "k=5", "k=7", "k=11"),
+  Falsos_Positivos = c(323, 460, 550, 598, 664),
+  Falsos_Negativos = c(340, 487, 483, 461, 451),
+  Error_Clasificacion = c(0.2009, 0.2870, 0.3130, 0.3209, 0.33379),
+  Kappa = c(0.5936, 0.4178, 0.3631, 0.3439, 0.3056),
+  AUC = c(0.8452, 0.7983, 0.7572, 0.7339, 0.7099)
+)
+kable(resultados)
+kable(resultados_coil)
+```
+##### En el caso de los algoritmo de 3 clases, observamos que el mejor algoritmo es el de k = 1, debido a que es aquel que tiene un menor error y un mayor kappa, si bien este valor kappa no es demasiado bueno ya que se queda en el rango de "acuerdo moderado, hay que tener en cuenta que no todos los rangos de kappa son adecuados, para todas las tareas, así que puede ser que este seas el mejor valor de kappa para un algoritmo clasificador de estrucutras secundarias como el nuestro. Así mismo, nuestro clasificador tiene un valor de error de 0.2, lo que quiere decir que falla en clasificar la estructura secundaria un 20% de las veces.
+##### En lo referente a la clase binaria, obtenemso resultados muy similares al caso anterior, siendode nuevo el mejor algoritmo k = 1, en este caso podemos ver como el valor de falsos postivos y negativos aumenta en gran medida cuando cambiamos el valor de k, que si bien se reduce muy poco a poco para los falsos negativos, sigue aumentando en los falsos positivos. Así mismo, el valor de AUC del algoritmo k=1 es muy bueno, teniendo un valor clase B casi A, lo que significa que es muy bueno identificandoi los casos positivos que de verdad lo son, en este caso, identifiocando correctamente aquellas clases non coil que de verdad son non coil.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
