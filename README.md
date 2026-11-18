@@ -1,2 +1,4 @@
 #### **This repositories verse about the two projects done during "Machine Learning" Lecture, encompassed in the Bioinformatics and Biostatistics Master taught by the University of Barcelona and the Open University of Cantalunya**
-##### 
+##### In the first HTML file, we apply the K-Nearest Neighbors algorithm. In this inform, we wanted to evaluate if K-NN algorithm was useful for the prediction of secondary structures in proteins
+##### In the second, an artificial neural network algorithm is used. In this case we wanted to see if an ANN was a good algorithm choice to predict change in proteins involved in Parkinson.
+##### In the fourth, in addition to these two algorithms, we find Naive-Bayes, Support Vector Machines, Decision trees, and Random Forests. in this last assignment, the chore was to compare this algorithms to see which was the best for predict diabetes in an cohort of patients.
